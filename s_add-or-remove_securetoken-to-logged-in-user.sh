@@ -195,7 +195,7 @@ function FdeExpect() {
 	echo "[Launch] sudo fdesetup $fde1 $fde2 $loggedInUser"
 	/usr/bin/expect  << 'EOF'
 		set timeout -1
-		exp_internal -f /tmp/fdesetup_add.log 0
+		exp_internal -f /tmp/fdesetup.log 0
 		spawn sudo fdesetup $env(fde1) $env(fde2) $env(loggedInUser)
 
 expect {
