@@ -10,10 +10,10 @@ This workflow is required to authorize programmatically-created user accounts (t
 
 ## Fork Options
 
-delete 'check_securetoken_logged_in_user' function.
-add 'securetoken_remove' function.
+- `delete` 'check_securetoken_logged_in_user' function.
+- `add` 'securetoken_remove' function.
 - `osascript` menu.
-- `function` 'add' or remove' securetoken via sysadminctl & fdesetup.
+- `add or remove` securetoken via sysadminctl & fdesetup.
 - `fdesetup` via expect 'FdeExpect' function.
-add exit loop condition if unable to remove or add SecureToken 10 attempts.
-move password retreive via function 'GetPass'
+- `add` exit loop condition if unable to remove or add SecureToken 10 attempts.
+- `move` password retreive via function 'GetPass'
