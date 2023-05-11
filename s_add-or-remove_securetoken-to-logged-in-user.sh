@@ -23,7 +23,7 @@
 #    add add or remove options of securetoken via sysadminctl & fdesetup.
 #    add fdesetup statement via expect, 'FdeExpect' function.
 #    add exit loop condition if unable to remove or add SecureToken 10 attempts.
-#    move password retreive via function 'GetPass'
+#    move password retreive via function 'GetPass'.
 #
 #
 ###
