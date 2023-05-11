@@ -15,6 +15,17 @@
 #         Last Modified:  2023-05-05
 #         Version:  5.0.0
 #
+#	  Last modifications involve :
+#    delete 'check_securetoken_logged_in_user' function.
+#    add 'securetoken_remove' function.
+#    move 'securetoken_add' function.
+#    add osascript menu.
+#    add add or remove options of securetoken via sysadminctl & fdesetup.
+#    add fdesetup statement via expect, 'FdeExpect' function.
+#    add exit loop condition if unable to remove or add SecureToken 10 attempts.
+#    move password retreive via function 'GetPass'
+#
+#
 ###
 
 
@@ -326,9 +337,9 @@ elif [[ "$choice" == "add" ]]; then
   # Ask for admin and user password
   GetPass
   # Add by 'fdesetup' using provided credentials.
-	fde1="add" && fde2="-usertoadd" && export fde1 && export fde2 && FdeExpect
+  fde1="add" && fde2="-usertoadd" && export fde1 && export fde2 && FdeExpect
   # Add SecureToken by 'sysadminctl' using provided credentials.
-	securetoken_add "$secureTokenAdmin" "$secureTokenAdminPass" "$loggedInUser" "$loggedInUserPass"
+  securetoken_add "$secureTokenAdmin" "$secureTokenAdminPass" "$loggedInUser" "$loggedInUserPass"
 else
   # Invalid choice.
   echo "Invalid choice"
