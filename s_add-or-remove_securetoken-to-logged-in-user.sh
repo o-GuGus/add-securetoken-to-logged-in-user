@@ -2,21 +2,24 @@
 
 ###
 #
-#            Name:  s_add-or-remove_securetoken-to-logged-in-user
-#     Description:  
+#         Name:  s_add-or-remove_securetoken-to-logged-in-user
+#         
+#         Description:  This is a shell script that adds or removes a security token (SecureToken)
+#          for the logged in user on a Mac. The script first checks if the operating system is compatible 
+#          with SecureToken, if the user is logged in, and if the provided local administrator account 
+#          has a valid security token. It also asks for the necessary passwords and executes
+#          the commands to add or remove the security token depending on the input variable.
 #                   
-#          Author:  Fork of Mario Panighetti & New version of Guillaume Gosselin
+#         Authors:  Fork of Mario Panighetti & New version of Guillaume Gosselin
 #         Created:  2023-05-04
-#   Last Modified:  2023-05-05
+#         Last Modified:  2023-05-05
 #         Version:  5.0.0
 #
 ###
 
 
-
-########## variable-ing ##########
-
-
+# Variables
+###############################################
 
 # Jamf Pro script parameter: "SecureToken Admin Username"
 # A local administrator account with SecureToken access.
@@ -31,47 +34,53 @@ loggedInUserPass="foo"
 passwordPrompt="foo"
 
 
+# Functions
+###############################################
 
-########## function-ing ##########
-
-
+# All functions for information
+#check_macos_version
+#check_logged_in_user
+#check_securetoken_admin
+#local_account_password_prompt
+#local_account_password_validation
+#securetoken_add
+#securetoken_remove
+#FdeExpect
+#GetPass
 
 # Exits with error if any required Jamf Pro arguments are undefined.
 check_jamf_pro_arguments () {
 	if [ -z "$secureTokenAdmin" ]; then
 		echo "❌ ERROR: Undefined Jamf Pro argument, unable to proceed."
-		exit 74
+		exit 10
 	fi
 }
-
 
 # Exits if macOS version predates the use of SecureToken functionality.
 check_macos_version () {
 	# Exit if macOS < 10.
 	if [ "$macOSVersionMajor" -lt 10 ]; then
-		echo "macOS version ${macOSVersionMajor} predates the use of SecureToken functionality, no action required."
+		echo "❌ macOS version ${macOSVersionMajor} predates the use of SecureToken functionality, no action required."
 		exit 0
 		# Exit if macOS 10 < 10.13.4.
 	elif [ "$macOSVersionMajor" -eq 10 ]; then
 		if [ "$macOSVersionMinor" -lt 13 ]; then
-			echo "macOS version ${macOSVersionMajor}.${macOSVersionMinor} predates the use of SecureToken functionality, no action required."
+			echo "❌ macOS version ${macOSVersionMajor}.${macOSVersionMinor} predates the use of SecureToken functionality, no action required."
 			exit 0
 		elif [ "$macOSVersionMinor" -eq 13 ] && [ "$macOSVersionBuild" -lt 4 ]; then
-			echo "macOS version ${macOSVersionMajor}.${macOSVersionMinor}.${macOSVersionBuild} predates the use of SecureToken functionality, no action required."
+			echo "❌ macOS version ${macOSVersionMajor}.${macOSVersionMinor}.${macOSVersionBuild} predates the use of SecureToken functionality, no action required."
 			exit 0
 		fi
 	fi
 }
 
-
 # Exits if root is the currently logged-in user, or no logged-in user is detected.
 check_logged_in_user () {
 	if [ "$loggedInUser" = "root" ] || [ -z "$loggedInUser" ]; then
-		echo "Nobody is logged in."
-		exit 0
+		echo "❌ Nobody is logged in."
+		exit 20
 	fi
 }
-
 
 # Exits with error if $secureTokenAdmin does not have SecureToken (unless running macOS 10.15 or later, in which case exit with explanation).
 check_securetoken_admin () {
@@ -81,7 +90,7 @@ check_securetoken_admin () {
 			exit 0
 		else
 			echo "❌ ERROR: ${secureTokenAdmin} does not have a valid SecureToken, unable to proceed. Please update Jamf Pro policy to target another admin user with SecureToken."
-			exit 1
+			exit 30
 		fi
 	else
 		echo "✅ Verified ${secureTokenAdmin} has SecureToken."
@@ -98,7 +107,6 @@ local_account_password_prompt () {
 	fi
 }
 
-
 # Validates provided password.
 local_account_password_validation () {
 	if /usr/bin/dscl "/Local/Default" authonly "${1}" "${2}" > "/dev/null" 2>&1; then
@@ -108,67 +116,80 @@ local_account_password_validation () {
 	fi
 }
 
-
 # Adds SecureToken to target user.
 securetoken_add () {
+# Check that all required arguments are present.
+if [ "$#" -ne 4 ]; then
+		echo "❌ ERROR: Check that all required arguments on 'securetoken_add' function"
+		exit 40
+fi
 attempts=0
+# Loops until SecureToken is enable for the target user.
 until /usr/sbin/sysadminctl -secureTokenStatus "$loggedInUser" 2>&1 | /usr/bin/grep -q "ENABLED"; do
+  # Add SecureToken to target user.
 	/usr/sbin/sysadminctl \
 	-adminUser "${1}" \
 	-adminPassword "${2}" \
 	-secureTokenOn "${3}" \
 	-password "${4}"
-	
 	# Verify successful SecureToken add.
 	secureTokenCheck=$(/usr/sbin/sysadminctl -secureTokenStatus "${3}" 2>&1)
 	if echo "$secureTokenCheck" | /usr/bin/grep -q "DISABLED"; then
+    # SecureToken addition failed.
 		echo "❌ ERROR: Failed to add SecureToken to ${3}. Please rerun policy; if issue persists, a manual SecureToken add will be required to continue."
-		exit 126
+		exit 50
 	elif echo "$secureTokenCheck" | /usr/bin/grep -q "ENABLED"; then
+    # SecureToken added successfully.
 		echo "✅ Successfully added SecureToken to ${3}."
 	else
+    # Unexpected error.
 		echo "❌ ERROR: Unexpected result, unable to proceed. Please rerun policy; if issue persists, a manual SecureToken add will be required to continue."
 		exit 1
 	fi
 ((attempts++))
 if [ "$attempts" -eq 10 ]; then
+# Maximum attempts reached, SecureToken addition failed.
 echo "❌ ERROR: Unable to add SecureToken to ${3} after 10 attempts."
 exit 1
 fi
 done
 }
 
-
-# Adds SecureToken to target user.
+# Removes SecureToken to target user.
 securetoken_remove () {
 attempts=0
+# Loops until SecureToken is disabled for the target user.
 until /usr/sbin/sysadminctl -secureTokenStatus "$loggedInUser" 2>&1 | /usr/bin/grep -q "DISABLED"; do
+# Disables SecureToken for the target user.
 	/usr/sbin/sysadminctl \
 	-adminUser "${1}" \
 	-adminPassword "${2}" \
 	-secureTokenOff "${3}" \
 	-password "${4}"
-
 	# Verify successful SecureToken remove.
 	secureTokenCheck=$(/usr/sbin/sysadminctl -secureTokenStatus "${3}" 2>&1)
 	if echo "$secureTokenCheck" | /usr/bin/grep -q "ENABLED"; then
+    # SecureToken removed failed.
 		echo "❌ ERROR: Failed to remove SecureToken to ${3}. Please rerun policy; if issue persists, a manual SecureToken add will be required to continue."
-        exit 126
+    exit 50
 	elif echo "$secureTokenCheck" | /usr/bin/grep -q "DISABLED"; then
+    # SecureToken removed successfully.
 		echo "✅ Successfully remove SecureToken to ${3}."
 	else
+    # Unexpected error.
 		echo "❌ ERROR: Unexpected result, unable to proceed. Please rerun policy; if issue persists, a manual SecureToken add will be required to continue."
 		exit 1
 	fi
 ((attempts++))
 if [ "$attempts" -eq 10 ]; then
+# Maximum attempts reached, SecureToken removed failed.
 echo "❌ ERROR: Unable to remove SecureToken to ${3} after 10 attempts."
 exit 1
 fi
 done
 }
 
-# Add or Remove FDESETUP to target user.
+# Add or Remove FDESETUP to targeted user.
 function FdeExpect() {
 	echo "[START] expect function"
 	echo "[Launch] sudo fdesetup $fde1 $fde2 $loggedInUser"
@@ -248,13 +269,11 @@ expect {
 
 EOF
 	echo "[END] expect function"
-    echo "✅ Fdesetup is ${fde1} for ${loggedInUser}."
+  echo "✅ Fdesetup is ${fde1} for ${loggedInUser}."
 }
-
 
 # GetPass
 function GetPass() {
-
 	# Get $secureTokenAdmin password.
 	echo "Get $secureTokenAdmin password"
 	until /usr/bin/dscl "/Local/Default" authonly "$secureTokenAdmin" "$secureTokenAdminPass" > "/dev/null" 2>&1; do
@@ -262,7 +281,6 @@ function GetPass() {
 		secureTokenAdminPass="$passwordPrompt"
 		local_account_password_validation "$secureTokenAdmin" "$secureTokenAdminPass"
 	done
-	
 	# Get $loggedInUser password.
     echo "Get $loggedInUser password"
 	until /usr/bin/dscl "/Local/Default" authonly "$loggedInUser" "$loggedInUserPass" > "/dev/null" 2>&1; do
@@ -270,7 +288,6 @@ function GetPass() {
 		loggedInUserPass="$passwordPrompt"
 		local_account_password_validation "$loggedInUser" "$loggedInUserPass"
 	done
-    
  # Export variables for expect
 	export secureTokenAdmin
 	export secureTokenAdminPass
@@ -279,8 +296,8 @@ function GetPass() {
 }
 
 
-########## main process ##########
-
+# Main
+###############################################
 
 # Check script prerequisites.
 check_jamf_pro_arguments
@@ -288,7 +305,7 @@ check_macos_version
 check_logged_in_user
 check_securetoken_admin
 
-# Afficher le menu osascript pour que l'utilisateur choisisse entre 'remove' et 'add'
+# Show the osascript menu for the user to choose between 'remove' and 'add'
 choice=$(osascript <<EOF
     set options to {"remove", "add"}
     choose from list options with prompt "Do you want to remove or add a secureToken for $loggedInUser ?"
@@ -297,25 +314,25 @@ choice=$(osascript <<EOF
 EOF
 )
 
-# Vérifier le choix de l'utilisateur et exporter la variable correspondante
+# Verify user choice and export corresponding variable
 if [[ "$choice" == "remove" ]]; then
-    # GetPass
-    GetPass
-	# Remove Fdesetup using provided credentials.
-    fde1="remove" && fde2="-user" && export fde1 && export fde2 && FdeExpect
-    # Remove SecureToken using provided credentials.
-	securetoken_remove "$secureTokenAdmin" "$secureTokenAdminPass" "$loggedInUser" "$loggedInUserPass"
-
+  # Ask for admin and user password
+  GetPass
+  # Remove by 'fdesetup' using provided credentials.
+  fde1="remove" && fde2="-user" && export fde1 && export fde2 && FdeExpect
+  # Remove SecureToken by 'sysadminctl' using provided credentials.
+  securetoken_remove "$secureTokenAdmin" "$secureTokenAdminPass" "$loggedInUser" "$loggedInUserPass"
 elif [[ "$choice" == "add" ]]; then
-    # GetPass
-    GetPass
-	# Add Fdesetup using provided credentials.
+  # Ask for admin and user password
+  GetPass
+  # Add by 'fdesetup' using provided credentials.
 	fde1="add" && fde2="-usertoadd" && export fde1 && export fde2 && FdeExpect
-    # Add SecureToken using provided credentials.
+  # Add SecureToken by 'sysadminctl' using provided credentials.
 	securetoken_add "$secureTokenAdmin" "$secureTokenAdminPass" "$loggedInUser" "$loggedInUserPass"
 else
-    echo "Invalid choice"
-    exit 1
+  # Invalid choice.
+  echo "Invalid choice"
+  exit 60
 fi
 
 exit 0
